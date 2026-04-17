@@ -4,7 +4,14 @@
       <component :is="Component" />
     </transition>
   </router-view>
+
+  <!-- Global loot notification toasts — teleported to <body> internally -->
+  <NotificationOverlay />
 </template>
+
+<script setup>
+import NotificationOverlay from './components/NotificationOverlay.vue';
+</script>
 
 <style>
 .fade-enter-active,

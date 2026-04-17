@@ -108,6 +108,7 @@ import { useCharacterStore } from '../store/useCharacterStore';
 import ProgressBar from '../components/ProgressBar.vue';
 import MonsterCard from '../components/MonsterCard.vue';
 import CombatLog from '../components/CombatLog.vue';
+import NotificationOverlay from '../components/NotificationOverlay.vue';
 
 const authStore = useAuthStore();
 const characterStore = useCharacterStore();
@@ -125,7 +126,11 @@ onMounted(async () => {
   // Fetch initial character state from backend
   await characterStore.fetchActiveCharacter();
 
-  // Start the RPG Combat ticker
+  // Subscribe to the private WebSocket channel for real-time combat updates
+  characterStore.initWebSocket(authStore.user.id);
+
+  // TODO Phase 2.2: Remove this polling interval once Reverb is confirmed stable.
+  // Kept as a safety net — the HTTP heartbeat still drives server-side logic.
   heartbeatInterval = setInterval(() => {
       characterStore.heartbeatTick();
   }, 2000); // 2 second combat tick
@@ -133,6 +138,8 @@ onMounted(async () => {
 
 onUnmounted(() => {
   if (heartbeatInterval) clearInterval(heartbeatInterval);
+  // Close all Echo subscriptions to prevent ghost listeners
+  characterStore.destroyWebSocket();
 });
 </script>
 

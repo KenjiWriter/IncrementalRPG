@@ -19,8 +19,10 @@ export const useCharacterStore = defineStore('character', {
         isDead: false,
         monster: null,
         logs: [],
+        // Internal — not persisted
+        _echoChannel: null,
     }),
-    
+
     actions: {
         async fetchActiveCharacter() {
             try {
@@ -30,10 +32,16 @@ export const useCharacterStore = defineStore('character', {
                     this.isDead = this.hp <= 0;
                 }
             } catch (error) {
-                console.error("Error fetching character:", error);
+                console.error('Error fetching character:', error);
             }
         },
-        
+
+        /**
+         * HTTP polling heartbeat — drives the server-side combat engine.
+         * The response is the source of truth; CombatTickEvent via WebSocket
+         * delivers the same data with lower latency when Reverb is running.
+         * Keep alive during Phase 2.1 as a safety net (removed in Phase 2.2).
+         */
         async heartbeatTick() {
             try {
                 const response = await axios.post('/api/character/heartbeat');
@@ -41,23 +49,75 @@ export const useCharacterStore = defineStore('character', {
                     const data = response.data.data;
                     this.$patch(data.character);
                     this.monster = data.monster;
-                    
+
                     if (data.logs && data.logs.length > 0) {
                         this.logs.push(...data.logs);
-                        // Keep only last 50 logs
                         if (this.logs.length > 50) {
                             this.logs = this.logs.slice(this.logs.length - 50);
                         }
                     }
-                    
-                    
+
                     this.isDead = this.hp <= 0;
                 }
             } catch (error) {
-                console.error("Error during heartbeat:", error);
+                console.error('Error during heartbeat:', error);
             }
-        }
+        },
+
+        /**
+         * Subscribe to the user's private channel and listen for CombatTickEvents.
+         * Called once after the active character is loaded in DashboardView.
+         *
+         * @param {number} userId - The authenticated user's ID.
+         */
+        initWebSocket(userId) {
+            if (!window.Echo) {
+                console.warn('[Echo] window.Echo not available — WebSocket disabled.');
+                return;
+            }
+
+            this._userId = userId;
+
+            this._echoChannel = window.Echo
+                .private(`App.Models.User.${userId}`)
+                .listen('.CombatTickEvent', (e) => {
+                    this.$patch(e.character);
+                    this.monster = e.monster ?? null;
+
+                    if (e.logs && e.logs.length > 0) {
+                        this.logs.push(...e.logs);
+                        if (this.logs.length > 50) {
+                            this.logs = this.logs.slice(-50);
+                        }
+                    }
+
+                    this.isDead = this.hp <= 0;
+                });
+
+            console.info(`[Echo] Subscribed to private channel: App.Models.User.${userId}`);
+        },
+
+        /**
+         * Unsubscribe from ALL Echo channels and clean up listeners.
+         * Must be called on logout and component unmount to prevent ghost listeners.
+         */
+        destroyWebSocket() {
+            if (!window.Echo) {
+                return;
+            }
+
+            if (this._userId) {
+                window.Echo.leave(`App.Models.User.${this._userId}`);
+                console.info(`[Echo] Left private channel: App.Models.User.${this._userId}`);
+            }
+
+            this._echoChannel = null;
+            this._userId      = null;
+        },
     },
-    
-    persist: true,
+
+    persist: {
+        // Exclude internal runtime fields from localStorage
+        omit: ['_echoChannel', '_userId', 'logs'],
+    },
 });

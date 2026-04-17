@@ -2,12 +2,14 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Events\CombatTickEvent;
+use App\Events\GlobalLootEvent;
 use App\Http\Controllers\Controller;
 use App\Models\Character;
 use App\Models\User;
-use Illuminate\Support\Facades\Cache;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 
 class CharacterController extends Controller
 {
@@ -35,6 +37,9 @@ class CharacterController extends Controller
 
     /**
      * Combat heartbeat / ticker to simulate game progression.
+     *
+     * Broadcasts a CombatTickEvent via private channel on every tick.
+     * Broadcasts a GlobalLootEvent via public channel only on significant (item) drops.
      */
     public function heartbeat(Request $request): JsonResponse
     {
@@ -55,21 +60,21 @@ class CharacterController extends Controller
 
         if ($character->hp < $restingThreshold) {
             // Resting sequence (regenerate 10% max hp)
-            $recoveryAmount = max(1, floor($character->max_hp * 0.10));
+            $recoveryAmount = max(1, (int) floor($character->max_hp * 0.10));
             $character->hp += $recoveryAmount;
-            
+
             if ($character->hp > $character->max_hp) {
                 $character->hp = $character->max_hp;
             }
 
             $flavorTexts = [
-                "> You are resting and tending to your wounds...",
+                '> You are resting and tending to your wounds...',
                 "> Focus returns. Recovered {$recoveryAmount} HP.",
-                "> The shadows protect you while you recover."
+                '> The shadows protect you while you recover.',
             ];
             $logs[] = $flavorTexts[array_rand($flavorTexts)];
 
-            // Player is resting, ensure they aren't fighting
+            // Player is resting — clear any active monster
             if (Cache::has("character_{$character->id}_monster")) {
                 Cache::forget("character_{$character->id}_monster");
             }
@@ -79,12 +84,12 @@ class CharacterController extends Controller
             // Retrieve or spawn monster
             $monster = Cache::get("character_{$character->id}_monster");
 
-            if (!$monster) {
+            if (! $monster) {
                 // Generate new monster based on character level
                 $monsterTypes = ['Slime', 'Goblin', 'Wolf', 'Skeleton', 'Orc'];
                 $monsterName = $monsterTypes[array_rand($monsterTypes)];
                 $monsterLevel = max(1, $character->level + rand(-1, 1));
-                
+
                 $monster = [
                     'id' => uniqid(),
                     'name' => $monsterName,
@@ -93,43 +98,45 @@ class CharacterController extends Controller
                     'max_hp' => 15 * $monsterLevel,
                     'attack' => 2 * $monsterLevel,
                 ];
-                
-                // IMPORTANT: Save newly spawned monster to Cache so we fight it next turn!
+
                 Cache::put("character_{$character->id}_monster", $monster, now()->addMinutes(10));
-                
+
                 $logs[] = "A wild {$monster['name']} appeared!";
             } else {
                 // Combat simulation
                 $playerDamage = max(1, $character->attack + rand(-2, 2));
                 $monster['hp'] -= $playerDamage;
                 $logs[] = "You attacked {$monster['name']} for {$playerDamage} damage.";
-                
+
                 if ($monster['hp'] <= 0) {
                     $monster['hp'] = 0;
                     $logs[] = "You defeated {$monster['name']}!";
-                    
-                    // Loot logic
+
+                    // Gold gain — private, stays in the tick log only
                     $goldGained = rand(2, 5) * $monster['level'];
                     $character->gold += $goldGained;
                     $logs[] = "You found {$goldGained} gold.";
-                    
+
                     $expGained = rand(10, 25) * $monster['level'];
                     $character->experience += $expGained;
                     $logs[] = "You gained {$expGained} experience.";
-                    
-                    if (rand(1, 100) <= 15) { // 15% drop chance
-                        $item = "Rusty Sword";
+
+                    // Significant item drop — broadcast to the global public channel
+                    if (rand(1, 100) <= 15) {
+                        $item = 'Rusty Sword';
                         $logs[] = "You looted a {$item}!";
+
+                        GlobalLootEvent::dispatch($character->name, $item);
                     }
-                    
-                    $monster = null; // Cleared
+
+                    $monster = null;
                     Cache::forget("character_{$character->id}_monster");
                 } else {
                     // Monster fights back
-                    $monsterDamage = max(1, $monster['attack'] + rand(-1, 2) - floor($character->defense / 2));
+                    $monsterDamage = max(1, $monster['attack'] + rand(-1, 2) - (int) floor($character->defense / 2));
                     $character->hp -= $monsterDamage;
                     $logs[] = "{$monster['name']} attacked you for {$monsterDamage} damage.";
-                    
+
                     Cache::put("character_{$character->id}_monster", $monster, now()->addMinutes(10));
                 }
             }
@@ -138,7 +145,7 @@ class CharacterController extends Controller
                 $character->hp = 0;
             }
 
-            // Level up logic
+            // Level-up logic
             $expNeededForNextLevel = $character->level * 1000;
             if ($character->experience >= $expNeededForNextLevel) {
                 $character->level += 1;
@@ -153,14 +160,23 @@ class CharacterController extends Controller
             $character->save();
         }
 
-        // Format logs for frontend
-        $formattedLogs = array_map(function($msg) {
-            return [
+        // Format logs with metadata
+        $formattedLogs = array_map(
+            fn (string $msg) => [
                 'id' => uniqid(),
                 'message' => $msg,
-                'timestamp' => now()->timestamp
-            ];
-        }, $logs);
+                'timestamp' => now()->timestamp,
+            ],
+            $logs
+        );
+
+        // Broadcast the full tick snapshot to this user's private channel (bypasses queue)
+        CombatTickEvent::dispatch(
+            $user->id,
+            $character->toArray(),
+            $monster,
+            $formattedLogs,
+        );
 
         return response()->json([
             'status' => 'success',
