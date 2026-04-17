@@ -17,6 +17,8 @@ export const useCharacterStore = defineStore('character', {
         speed: 10,
         luck: 5,
         isDead: false,
+        monster: null,
+        logs: [],
     }),
     
     actions: {
@@ -33,14 +35,23 @@ export const useCharacterStore = defineStore('character', {
         },
         
         async heartbeatTick() {
-            if (this.isDead) return;
             try {
                 const response = await axios.post('/api/character/heartbeat');
                 if (response.data.status === 'success') {
-                    this.$patch(response.data.data.character);
-                    if (this.hp <= 0) {
-                        this.isDead = true;
+                    const data = response.data.data;
+                    this.$patch(data.character);
+                    this.monster = data.monster;
+                    
+                    if (data.logs && data.logs.length > 0) {
+                        this.logs.push(...data.logs);
+                        // Keep only last 50 logs
+                        if (this.logs.length > 50) {
+                            this.logs = this.logs.slice(this.logs.length - 50);
+                        }
                     }
+                    
+                    
+                    this.isDead = this.hp <= 0;
                 }
             } catch (error) {
                 console.error("Error during heartbeat:", error);
