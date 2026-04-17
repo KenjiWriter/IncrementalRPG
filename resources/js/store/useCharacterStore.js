@@ -16,11 +16,15 @@ export const useCharacterStore = defineStore('character', {
         defense: 10,
         speed: 10,
         luck: 5,
+        current_location_id: 1,
+        currentLocation: null,
         isDead: false,
         monster: null,
         logs: [],
+        presentPlayers: [],
         // Internal — not persisted
         _echoChannel: null,
+        _locationChannel: null,
     }),
 
     actions: {
@@ -113,11 +117,61 @@ export const useCharacterStore = defineStore('character', {
 
             this._echoChannel = null;
             this._userId      = null;
+
+            this.leaveLocationChannel();
+        },
+
+        async changeLocation(locationId) {
+            try {
+                const response = await axios.post('/api/character/location', { location_id: locationId });
+                if (response.data.status === 'success') {
+                    const data = response.data.data;
+                    this.current_location_id = data.character.current_location_id;
+                    this.currentLocation = data.character.current_location;
+                    this.monster = null; // Clear monster when changing zones
+                    
+                    // Re-join location channel
+                    this.joinLocationChannel(this.current_location_id);
+                }
+            } catch (error) {
+                console.error('Error changing location:', error);
+            }
+        },
+
+        joinLocationChannel(locationId) {
+            if (!window.Echo) return;
+
+            this.leaveLocationChannel();
+
+            this.presentPlayers = [];
+
+            this._locationChannel = window.Echo.join(`location.${locationId}`)
+                .here((users) => {
+                    this.presentPlayers = users;
+                })
+                .joining((user) => {
+                    this.presentPlayers.push(user);
+                })
+                .leaving((user) => {
+                    this.presentPlayers = this.presentPlayers.filter(u => u.id !== user.id);
+                });
+
+            console.info(`[Echo] Joined presence channel: location.${locationId}`);
+        },
+
+        leaveLocationChannel() {
+            if (!window.Echo || !this._locationChannel) return;
+
+            const channelName = this._locationChannel.name;
+            window.Echo.leave(channelName);
+            this._locationChannel = null;
+            this.presentPlayers = [];
+            console.info(`[Echo] Left presence channel: ${channelName}`);
         },
     },
 
     persist: {
         // Exclude internal runtime fields from localStorage
-        omit: ['_echoChannel', '_userId', 'logs'],
+        omit: ['_echoChannel', '_locationChannel', '_userId', 'logs', 'presentPlayers'],
     },
 });

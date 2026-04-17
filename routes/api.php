@@ -17,4 +17,7 @@ Route::middleware('auth:sanctum')->group(function () {
     // Protected Game Engine Routes
     Route::get('/active-character', [CharacterController::class, 'getActive']);
     Route::post('/character/heartbeat', [CharacterController::class, 'heartbeat']);
+    Route::post('/character/location', [CharacterController::class, 'changeLocation']);
+    
+    Route::get('/locations', [\App\Http\Controllers\Api\LocationController::class, 'index']);
 });

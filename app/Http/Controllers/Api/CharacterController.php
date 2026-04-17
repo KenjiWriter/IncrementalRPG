@@ -5,7 +5,8 @@ namespace App\Http\Controllers\Api;
 use App\Events\CombatTickEvent;
 use App\Events\GlobalLootEvent;
 use App\Http\Controllers\Controller;
-use App\Models\Character;
+use App\Models\Location;
+use App\Models\Monster;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -23,7 +24,7 @@ class CharacterController extends Controller
             return response()->json(['status' => 'error', 'message' => 'User not found'], 404);
         }
 
-        $character = $user->activeCharacter;
+        $character = $user->activeCharacter()->with('currentLocation')->first();
 
         if (! $character) {
             return response()->json(['status' => 'error', 'message' => 'No active character'], 404);
@@ -85,10 +86,21 @@ class CharacterController extends Controller
             $monster = Cache::get("character_{$character->id}_monster");
 
             if (! $monster) {
-                // Generate new monster based on character level
-                $monsterTypes = ['Slime', 'Goblin', 'Wolf', 'Skeleton', 'Orc'];
-                $monsterName = $monsterTypes[array_rand($monsterTypes)];
-                $monsterLevel = max(1, $character->level + rand(-1, 1));
+                // Generate new monster based on character location
+                $availableMonsters = Monster::where('location_id', $character->current_location_id)->get();
+                
+                if ($availableMonsters->isEmpty()) {
+                    // Fallback to random if no monsters found for location (should not happen with seeders)
+                    $monsterType = ['Slime', 'Goblin', 'Wolf'];
+                    $monsterName = $monsterType[array_rand($monsterType)];
+                    $levelMod = 0;
+                } else {
+                    $mModel = $availableMonsters->random();
+                    $monsterName = $mModel->name;
+                    $levelMod = $mModel->level_modifier;
+                }
+
+                $monsterLevel = max(1, $character->level + $levelMod + rand(-1, 1));
 
                 $monster = [
                     'id' => uniqid(),
@@ -181,10 +193,43 @@ class CharacterController extends Controller
         return response()->json([
             'status' => 'success',
             'data' => [
-                'character' => $character,
+                'character' => $character->load('currentLocation'),
                 'monster' => $monster,
                 'logs' => $formattedLogs,
             ],
+        ]);
+    }
+
+    /**
+     * Change the character's current location.
+     */
+    public function changeLocation(Request $request): JsonResponse
+    {
+        $user = $request->user();
+        $character = $user->activeCharacter;
+        
+        $locationId = $request->input('location_id');
+        $location = Location::find($locationId);
+
+        if (!$location) {
+            return response()->json(['status' => 'error', 'message' => 'Location not found'], 404);
+        }
+
+        if ($character->level < $location->min_level) {
+            return response()->json(['status' => 'error', 'message' => "Requies Level {$location->min_level}"], 403);
+        }
+
+        $character->current_location_id = $location->id;
+        $character->save();
+
+        // Clear active monster when changing zones
+        Cache::forget("character_{$character->id}_monster");
+
+        return response()->json([
+            'status' => 'success',
+            'data' => [
+                'character' => $character->load('currentLocation'),
+            ]
         ]);
     }
 }

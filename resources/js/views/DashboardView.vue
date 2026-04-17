@@ -15,8 +15,14 @@
     </header>
 
     <!-- Main Content Grid -->
-    <main class="flex-1 flex flex-col items-center p-6 sm:p-12 relative overflow-y-auto w-full mx-auto gap-8">
-      <div class="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-indigo-900/10 via-zinc-950/0 to-zinc-950 pointer-events-none"></div>
+    <main class="flex-1 flex flex-col items-center p-6 sm:p-12 relative overflow-y-auto w-full mx-auto gap-8 transition-colors duration-1000"
+          :style="{ 
+            backgroundColor: characterStore.currentLocation?.css_theme?.from || '#09090b',
+            backgroundImage: `radial-gradient(ellipse at top, ${characterStore.currentLocation?.css_theme?.to || '#09090b'} 0%, transparent 70%)`
+          }">
+      
+      <!-- Zone Presence Banner -->
+      <ZonePresenceBanner />
 
       <div class="flex flex-col md:flex-row items-center md:items-start justify-center gap-6 md:gap-12 w-full max-w-5xl z-[1] mt-4">
         
@@ -91,9 +97,14 @@
 
       </div>
 
-      <!-- Combat Log Area -->
-      <div class="w-full max-w-2xl mt-4 flex justify-center pb-8">
-        <CombatLog :logs="characterStore.logs" />
+      <!-- Combat Log and Travel Menu -->
+      <div class="w-full max-w-5xl mt-4 flex flex-col md:flex-row gap-6 pb-8 items-start">
+        <div class="flex-1 flex justify-center">
+             <CombatLog :logs="characterStore.logs" />
+        </div>
+        <div class="w-full md:w-auto flex justify-center">
+             <TravelMenu />
+        </div>
       </div>
 
     </main>
@@ -105,13 +116,17 @@ import { onMounted, onUnmounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { useAuthStore } from '../store/useAuthStore';
 import { useCharacterStore } from '../store/useCharacterStore';
+import { useLocationStore } from '../store/useLocationStore';
 import ProgressBar from '../components/ProgressBar.vue';
 import MonsterCard from '../components/MonsterCard.vue';
 import CombatLog from '../components/CombatLog.vue';
+import TravelMenu from '../components/TravelMenu.vue';
+import ZonePresenceBanner from '../components/ZonePresenceBanner.vue';
 import NotificationOverlay from '../components/NotificationOverlay.vue';
 
 const authStore = useAuthStore();
 const characterStore = useCharacterStore();
+const locationStore = useLocationStore();
 const router = useRouter();
 let heartbeatInterval = null;
 
@@ -125,9 +140,16 @@ onMounted(async () => {
   await authStore.fetchUser();
   // Fetch initial character state from backend
   await characterStore.fetchActiveCharacter();
+  // Fetch all available locations
+  await locationStore.fetchLocations();
 
   // Subscribe to the private WebSocket channel for real-time combat updates
   characterStore.initWebSocket(authStore.user.id);
+  
+  // Join the presence channel for the current location
+  if (characterStore.current_location_id) {
+    characterStore.joinLocationChannel(characterStore.current_location_id);
+  }
 
   // TODO Phase 2.2: Remove this polling interval once Reverb is confirmed stable.
   // Kept as a safety net — the HTTP heartbeat still drives server-side logic.

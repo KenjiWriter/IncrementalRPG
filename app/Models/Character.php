@@ -33,6 +33,7 @@ class Character extends Model
             'defense' => 'integer',
             'speed' => 'integer',
             'luck' => 'integer',
+            'current_location_id' => 'integer',
             'last_activity_at' => 'datetime',
         ];
     }
@@ -40,5 +41,10 @@ class Character extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function currentLocation(): BelongsTo
+    {
+        return $this->belongsTo(Location::class, 'current_location_id');
     }
 }
