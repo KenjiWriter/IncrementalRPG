@@ -26,6 +26,17 @@ export const useAuthStore = defineStore('auth', {
             this.setAxiosToken();
         },
         
+        async fetchUser() {
+            try {
+                this.setAxiosToken();
+                const response = await axios.get('/api/user');
+                this.user = response.data;
+            } catch (error) {
+                console.error("Error fetching user data", error);
+                this.clearAuth();
+            }
+        },
+        
         async logout() {
             try {
                 await axios.post('/api/logout');

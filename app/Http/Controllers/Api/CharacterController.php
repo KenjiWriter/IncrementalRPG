@@ -16,25 +16,16 @@ class CharacterController extends Controller
      */
     public function getActive(Request $request): JsonResponse
     {
-        // Temporary: Create a mock user & character to simulate an active session
-        $user = User::firstOrCreate(
-            ['email' => 'hero@eternalshard.com'],
-            ['name' => 'Hero', 'password' => bcrypt('password')]
-        );
+        $user = $request->user();
+        if (! $user) {
+            return response()->json(['status' => 'error', 'message' => 'User not found'], 404);
+        }
 
-        $character = Character::firstOrCreate(
-            ['user_id' => $user->id],
-            [
-                'name' => 'Wandering Soul',
-                'level' => 1,
-                'experience' => 0,
-                'gold' => 0,
-                'hp' => 100,
-                'max_hp' => 100,
-                'mana' => 50,
-                'max_mana' => 50,
-            ]
-        );
+        $character = $user->activeCharacter;
+
+        if (! $character) {
+            return response()->json(['status' => 'error', 'message' => 'No active character'], 404);
+        }
 
         return response()->json([
             'status' => 'success',
@@ -47,12 +38,12 @@ class CharacterController extends Controller
      */
     public function heartbeat(Request $request): JsonResponse
     {
-        $user = User::where('email', 'hero@eternalshard.com')->first();
+        $user = $request->user();
         if (! $user) {
             return response()->json(['status' => 'error', 'message' => 'User not found'], 404);
         }
 
-        $character = Character::where('user_id', $user->id)->first();
+        $character = $user->activeCharacter;
         if (! $character) {
             return response()->json(['status' => 'error', 'message' => 'No active character'], 404);
         }

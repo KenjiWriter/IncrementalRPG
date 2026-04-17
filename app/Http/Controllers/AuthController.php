@@ -28,7 +28,7 @@ class AuthController extends Controller
 
             $character = Character::create([
                 'user_id' => $user->id,
-                'name' => 'Wandering Soul',
+                'name' => $user->name,
             ]);
 
             $user->update(['active_character_id' => $character->id]);

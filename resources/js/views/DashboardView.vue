@@ -32,8 +32,8 @@
           
           <div class="flex items-center justify-between">
             <div>
-              <h2 class="text-xl font-bold font-serif text-white tracking-wide drop-shadow-sm">{{ characterStore.name || 'Unknown Adventurer' }}</h2>
-              <p class="text-[11px] text-zinc-400 font-medium tracking-widest uppercase mt-1">Level {{ characterStore.level }} • Idle RPG</p>
+              <h2 class="text-xl font-bold font-serif text-white tracking-wide drop-shadow-sm">{{ authStore.user?.name || 'Unknown Adventurer' }}</h2>
+              <p class="text-[11px] text-zinc-400 font-medium tracking-widest uppercase mt-1">Level {{ characterStore.level }} • {{ characterStore.name }}</p>
             </div>
             <div class="w-14 h-14 rounded-full border-2 border-zinc-700 bg-zinc-800 shadow-inner flex items-center justify-center shrink-0">
               <span class="text-2xl drop-shadow-md pb-0.5">👤</span>
@@ -120,6 +120,8 @@ const handleLogout = async () => {
 };
 
 onMounted(async () => {
+  // Sync the latest user info
+  await authStore.fetchUser();
   // Fetch initial character state from backend
   await characterStore.fetchActiveCharacter();
 

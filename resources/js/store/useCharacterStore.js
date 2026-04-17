@@ -24,7 +24,7 @@ export const useCharacterStore = defineStore('character', {
     actions: {
         async fetchActiveCharacter() {
             try {
-                const response = await axios.get('/api/character');
+                const response = await axios.get('/api/active-character');
                 if (response.data.status === 'success') {
                     this.$patch(response.data.data);
                     this.isDead = this.hp <= 0;
