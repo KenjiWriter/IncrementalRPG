@@ -1,3 +1,26 @@
+# Eternal Shard - Project Memory
+
+## Core Project Vision
+- **Name:** Eternal Shard
+- **Genre:** Single Page Application (SPA) Idle RPG.
+- **Stack:** Laravel 12 (v13 core), Vue 3 (Composition API), Pinia, Laravel Reverb.
+- **Gameplay Loop:** Automatic combat against monsters, real-time HP/EXP bars, and server-side loot generation. All game logic runs and validates on the backend.
+- **Advanced Features:** 
+  - Real-time global feed & World Bosses (Reverb).
+  - Player Marketplace for item trading.
+  - Offline progress (AFK rewards) calculation.
+  - Item Upgrading (Blacksmith) with backend-calculated success rates.
+  - Stripe integration for "Shard Credits" and Supporter Status subscriptions.
+
+## Rules of Engagement
+- Strictly follow the `laravel-boost-guidelines` (retained below).
+- All games rules and mechanics (combat results, loot, xp, upgrades) MUST be backend-validated to prevent cheating.
+- Use Pest for testing all core RPG mechanics.
+- Run `vendor/bin/pint --format agent` after any PHP file modification.
+- UI should be rich, dynamic, and use a modern aesthetic (Tailwind CSS, animations, responsive HUD).
+
+---
+
 <laravel-boost-guidelines>
 === foundation rules ===
 
