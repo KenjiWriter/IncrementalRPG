@@ -65,6 +65,27 @@ class Character extends Model
     }
 
     /**
+     * Get all items in a format suitable for the frontend.
+     *
+     * @return \Illuminate\Support\Collection
+     */
+    public function getFormattedInventory()
+    {
+        return $this->items()->get()->map(function ($item) {
+            return [
+                'id' => $item->pivot->id,
+                'item_id' => $item->id,
+                'name' => $item->name,
+                'description' => $item->description,
+                'slot' => $item->slot,
+                'rarity' => $item->rarity,
+                'is_equipped' => (bool) $item->pivot->is_equipped,
+                'bonuses' => $item->bonuses(),
+            ];
+        });
+    }
+
+    /**
      * Only the currently equipped items.
      */
     public function equippedItems(): BelongsToMany

@@ -14,11 +14,13 @@ class Monster extends Model
         'name',
         'level_modifier',
         'location_id',
+        'loot_table',
     ];
 
     protected $casts = [
         'level_modifier' => 'integer',
         'location_id' => 'integer',
+        'loot_table' => 'array',
     ];
 
     public function location(): BelongsTo

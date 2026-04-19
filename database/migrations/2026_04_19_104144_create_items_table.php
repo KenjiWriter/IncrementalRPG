@@ -17,7 +17,7 @@ return new class extends Migration
             $table->string('description')->nullable();
 
             // Slot determines where the item can be equipped in the paperdoll
-            $table->enum('slot', ['head', 'chest', 'weapon', 'off_hand', 'ring', 'accessory']);
+            $table->enum('slot', ['head', 'chest', 'feet', 'weapon', 'off_hand', 'ring', 'accessory']);
 
             // Item rarity tier
             $table->enum('rarity', ['common', 'uncommon', 'rare', 'epic', 'legendary'])->default('common');

@@ -24,8 +24,8 @@ class DatabaseSeeder extends Seeder
 
         $this->call([
             LocationSeeder::class,
-            MonsterSeeder::class,
             ItemSeeder::class,
+            MonsterSeeder::class,
         ]);
     }
 }

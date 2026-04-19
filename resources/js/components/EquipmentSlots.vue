@@ -48,6 +48,7 @@ const displaySlots = [
   { id: 'off_hand', label: 'Off' },
   { id: 'ring', label: 'Ring' },
   { id: 'accessory', label: 'Neck' },
+  { id: 'feet', label: 'Feet' },
 ];
 
 const getEquippedInSlot = (slotId) => {
@@ -64,6 +65,7 @@ const getSlotEmoji = (slotId) => {
     case 'off_hand': return '🛡️';
     case 'ring': return '💍';
     case 'accessory': return '📿';
+    case 'feet': return '🥾';
     default: return '📦';
   }
 };
@@ -76,6 +78,7 @@ const getSlotEmojiPlaceholder = (slotId) => {
     case 'off_hand': return '💠';
     case 'ring': return '⭕';
     case 'accessory': return '🎗️';
+    case 'feet': return '👣';
     default: return '□';
   }
 };

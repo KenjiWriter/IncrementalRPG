@@ -57,6 +57,12 @@ export const useCharacterStore = defineStore('character', {
                 if (response.data.status === 'success') {
                     const data = response.data.data;
                     this.$patch(data.character);
+
+                    // Explicitly sync inventory if it exists in the character object
+                    if (data.character.inventory) {
+                        this.inventory = data.character.inventory;
+                    }
+
                     this.monster = data.monster;
 
                     if (data.logs && data.logs.length > 0) {
@@ -91,6 +97,12 @@ export const useCharacterStore = defineStore('character', {
                 .private(`App.Models.User.${userId}`)
                 .listen('.CombatTickEvent', (e) => {
                     this.$patch(e.character);
+                    
+                    // Explicitly sync inventory if it exists in the character object
+                    if (e.character.inventory) {
+                        this.inventory = e.character.inventory;
+                    }
+
                     this.monster = e.monster ?? null;
 
                     if (e.logs && e.logs.length > 0) {
@@ -190,7 +202,7 @@ export const useCharacterStore = defineStore('character', {
                 const response = await axios.post('/api/inventory/equip', { character_item_id: characterItemId });
                 if (response.data.status === 'success') {
                     this.$patch(response.data.data.character);
-                    await this.fetchInventory();
+                    this.inventory = response.data.data.inventory;
                 }
             } catch (error) {
                 console.error('Error equipping item:', error);
@@ -202,7 +214,7 @@ export const useCharacterStore = defineStore('character', {
                 const response = await axios.post('/api/inventory/unequip', { character_item_id: characterItemId });
                 if (response.data.status === 'success') {
                     this.$patch(response.data.data.character);
-                    await this.fetchInventory();
+                    this.inventory = response.data.data.inventory;
                 }
             } catch (error) {
                 console.error('Error unequipping item:', error);

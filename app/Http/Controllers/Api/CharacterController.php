@@ -103,13 +103,37 @@ class CharacterController extends Controller
 
                 $monsterLevel = max(1, $character->level + $levelMod + rand(-1, 1));
 
+                $lootTable = $availableMonsters->isEmpty() ? [] : $mModel->loot_table;
+                $enrichedLoot = [];
+
+                if (!empty($lootTable)) {
+                    $itemIds = array_column($lootTable, 'item_id');
+                    $items = Item::whereIn('id', $itemIds)->get()->keyBy('id');
+
+                    foreach ($lootTable as $loot) {
+                        $item = $items->get($loot['item_id']);
+                        if ($item) {
+                            $enrichedLoot[] = [
+                                'item_id' => $loot['item_id'],
+                                'chance' => $loot['chance'],
+                                'name' => $item->name,
+                                'rarity' => $item->rarity,
+                                'slot' => $item->slot,
+                                'bonuses' => $item->bonuses(),
+                            ];
+                        }
+                    }
+                }
+
                 $monster = [
                     'id' => uniqid(),
+                    'monster_id' => $availableMonsters->isEmpty() ? null : $mModel->id,
                     'name' => $monsterName,
                     'level' => $monsterLevel,
                     'hp' => 15 * $monsterLevel,
                     'max_hp' => 15 * $monsterLevel,
                     'attack' => 2 * $monsterLevel,
+                    'loot_table' => $enrichedLoot,
                 ];
 
                 Cache::put("character_{$character->id}_monster", $monster, now()->addMinutes(10));
@@ -134,16 +158,29 @@ class CharacterController extends Controller
                     $character->experience += $expGained;
                     $logs[] = "You gained {$expGained} experience.";
 
-                    // Significant item drop — broadcast to the global public channel
-                    if (rand(1, 100) <= 15) {
-                        $item = Item::inRandomOrder()->first();
+                    // Process loot table
+                    $monsterLoot = $monster['loot_table'] ?? [];
+                    $lootedItems = [];
+                    foreach ($monsterLoot as $lootEntry) {
+                        $roll = rand(0, 1000) / 10; // Supports 0.1% precision
+                        if ($roll <= $lootEntry['chance']) {
+                            $item = Item::find($lootEntry['item_id']);
 
-                        if ($item) {
-                            $character->items()->attach($item->id);
-                            $logs[] = "You looted a {$item->name}!";
-                            GlobalLootEvent::dispatch($character->name, $item->name);
+                            if ($item) {
+                                $character->items()->attach($item->id);
+                                $lootedItems[] = $item;
+                                $logs[] = "You looted a {$item->name}!";
+
+                                // Only broadcast rare items or better globally
+                                if (in_array($item->rarity, ['rare', 'epic', 'legendary'])) {
+                                    GlobalLootEvent::dispatch($character->name, $item->name);
+                                }
+                            }
                         }
                     }
+
+                    // Force refresh items relationship so toArray() includes the new loot
+                    $character->load('items');
 
                     $monster = null;
                     Cache::forget("character_{$character->id}_monster");
@@ -197,9 +234,12 @@ class CharacterController extends Controller
         );
 
         // Broadcast the full tick snapshot to this user's private channel (bypasses queue)
+        $characterArray = $character->toArray();
+        $characterArray['inventory'] = $character->getFormattedInventory();
+
         CombatTickEvent::dispatch(
             $user->id,
-            $character->toArray(),
+            $characterArray,
             $monster,
             $formattedLogs,
         );
@@ -207,7 +247,7 @@ class CharacterController extends Controller
         return response()->json([
             'status' => 'success',
             'data' => [
-                'character' => $character->load('currentLocation'),
+                'character' => $characterArray,
                 'monster' => $monster,
                 'logs' => $formattedLogs,
             ],

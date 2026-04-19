@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class InventoryController extends Controller
 {
@@ -19,18 +20,7 @@ class InventoryController extends Controller
             return response()->json(['status' => 'error', 'message' => 'No active character'], 404);
         }
 
-        $items = $character->items()->get()->map(function ($item) {
-            return [
-                'id' => $item->pivot->id,
-                'item_id' => $item->id,
-                'name' => $item->name,
-                'description' => $item->description,
-                'slot' => $item->slot,
-                'rarity' => $item->rarity,
-                'is_equipped' => (bool) $item->pivot->is_equipped,
-                'bonuses' => $item->bonuses(),
-            ];
-        });
+        $items = $character->getFormattedInventory();
 
         return response()->json([
             'status' => 'success',
@@ -46,6 +36,7 @@ class InventoryController extends Controller
         $character = $request->user()->activeCharacter;
         $pivotId = $request->input('character_item_id');
 
+        // Find the specific item in the character's inventory by its pivot ID
         $characterItem = $character->items()->wherePivot('id', $pivotId)->first();
 
         if (! $characterItem) {
@@ -54,35 +45,25 @@ class InventoryController extends Controller
 
         $slot = $characterItem->slot;
 
-        // Unequip anything already in this slot
-        $character->items()
-            ->wherePivot('is_equipped', true)
-            ->wherePivot('slot', $slot)
-            ->updateExistingPivot($character->items()->wherePivot('is_equipped', true)->wherePivot('slot', $slot)->first()?->id, [
+        // 1. Unequip anything already in this slot
+        DB::table('character_item')
+            ->where('character_id', $character->id)
+            ->where('slot', $slot)
+            ->where('is_equipped', true)
+            ->update([
                 'is_equipped' => false,
                 'slot' => null,
             ]);
 
-        // Note: The above updateExistingPivot is a bit clunky with wherePivot.
-        // Let's do it more cleanly.
+        // 2. Equip the new item instance by updating its pivot record
+        DB::table('character_item')
+            ->where('id', $pivotId)
+            ->update([
+                'is_equipped' => true,
+                'slot' => $slot,
+            ]);
 
-        $character->equippedItems()
-            ->where('slot', $slot)
-            ->get()
-            ->each(function ($item) use ($character) {
-                $character->items()->updateExistingPivot($item->id, [
-                    'is_equipped' => false,
-                    'slot' => null,
-                ]);
-            });
-
-        // Equip the new item
-        $character->items()->updateExistingPivot($characterItem->id, [
-            'is_equipped' => true,
-            'slot' => $slot,
-        ]);
-
-        // Recompute stats
+        // 3. Recompute and persist character stats
         $character->applyStats();
 
         return response()->json([
@@ -90,6 +71,7 @@ class InventoryController extends Controller
             'message' => "Equipped {$characterItem->name}",
             'data' => [
                 'character' => $character->load('currentLocation'),
+                'inventory' => $character->getFormattedInventory(),
             ],
         ]);
     }
@@ -102,16 +84,20 @@ class InventoryController extends Controller
         $character = $request->user()->activeCharacter;
         $pivotId = $request->input('character_item_id');
 
-        $characterItem = $character->items()->wherePivot('id', $pivotId)->first();
+        // Verify the item is actually equipped to this character
+        $characterItem = $character->items()->wherePivot('id', $pivotId)->wherePivot('is_equipped', true)->first();
 
-        if (! $characterItem || ! $characterItem->pivot->is_equipped) {
+        if (! $characterItem) {
             return response()->json(['status' => 'error', 'message' => 'Item is not equipped'], 400);
         }
 
-        $character->items()->updateExistingPivot($characterItem->id, [
-            'is_equipped' => false,
-            'slot' => null,
-        ]);
+        // Update the pivot record directly
+        DB::table('character_item')
+            ->where('id', $pivotId)
+            ->update([
+                'is_equipped' => false,
+                'slot' => null,
+            ]);
 
         // Recompute stats
         $character->applyStats();
@@ -121,6 +107,7 @@ class InventoryController extends Controller
             'message' => "Unequipped {$characterItem->name}",
             'data' => [
                 'character' => $character->load('currentLocation'),
+                'inventory' => $character->getFormattedInventory(),
             ],
         ]);
     }

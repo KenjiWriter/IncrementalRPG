@@ -41,9 +41,10 @@
               </div>
             </div>
 
-            <button @click="characterStore.equipItem(item.id)" 
-                    class="bg-zinc-800 hover:bg-indigo-600 text-zinc-300 hover:text-white px-3 py-1.5 rounded-lg text-[9px] font-bold uppercase tracking-widest border border-zinc-700 hover:border-indigo-500 transition-all active:scale-95 cursor-pointer">
-              Equip
+            <button @click="handleEquip(item.id)" 
+                    :disabled="equippingId === item.id"
+                    class="bg-zinc-800 hover:bg-indigo-600 text-zinc-300 hover:text-white px-3 py-1.5 rounded-lg text-[9px] font-bold uppercase tracking-widest border border-zinc-700 hover:border-indigo-500 transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer">
+              {{ equippingId === item.id ? 'Equipping...' : 'Equip' }}
             </button>
           </div>
         </div>
@@ -53,14 +54,24 @@
 </template>
 
 <script setup>
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 import { useCharacterStore } from '../store/useCharacterStore';
 
 const characterStore = useCharacterStore();
+const equippingId = ref(null);
 
 const unequippedItems = computed(() => {
   return characterStore.inventory.filter(i => !i.is_equipped);
 });
+
+const handleEquip = async (itemId) => {
+  equippingId.value = itemId;
+  try {
+    await characterStore.equipItem(itemId);
+  } finally {
+    equippingId.value = null;
+  }
+};
 
 const getItemEmoji = (slot) => {
   switch(slot) {

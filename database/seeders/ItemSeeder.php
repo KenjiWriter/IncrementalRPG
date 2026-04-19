@@ -111,6 +111,34 @@ class ItemSeeder extends Seeder
                 'hp_bonus' => 25,
                 'vit_bonus' => 2,
             ],
+
+            // ── New Loot Items ──────────────────────────────────────────────
+            [
+                'name' => 'Tattered Cloth',
+                'description' => 'A scrap of fabric from a defeated foe. Maybe useful for something...',
+                'slot' => 'accessory',
+                'rarity' => 'common',
+            ],
+            [
+                'name' => 'Leather Boots',
+                'description' => 'Simple protection for your feet.',
+                'slot' => 'feet',
+                'rarity' => 'common',
+                'defense_bonus' => 1,
+            ],
+            [
+                'name' => 'Wolf Pelt',
+                'description' => 'A thick, coarse pelt from a wild wolf.',
+                'slot' => 'accessory',
+                'rarity' => 'common',
+            ],
+            [
+                'name' => 'Rusty Shield',
+                'description' => 'A discarded militia shield. Heavy and awkward.',
+                'slot' => 'off_hand',
+                'rarity' => 'common',
+                'defense_bonus' => 3,
+            ],
         ];
 
         foreach ($items as $item) {
