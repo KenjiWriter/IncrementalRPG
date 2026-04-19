@@ -1,5 +1,5 @@
 <template>
-  <div class="w-full max-w-md bg-zinc-900/40 backdrop-blur-xl border border-zinc-800/80 rounded-2xl p-6 shadow-2xl relative overflow-hidden group">
+  <div class="w-full bg-zinc-900/40 backdrop-blur-xl border border-zinc-800/80 rounded-2xl p-6 shadow-2xl relative overflow-hidden group">
     <!-- Header -->
     <div class="flex items-center justify-between mb-6">
       <div>

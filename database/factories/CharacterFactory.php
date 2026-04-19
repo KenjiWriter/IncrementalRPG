@@ -24,14 +24,19 @@ class CharacterFactory extends Factory
             'level' => 1,
             'experience' => 0,
             'gold' => 0,
-            'hp' => 100,
-            'max_hp' => 100,
+            'hp' => 105,  // vitality(10)*10 + level(1)*5
+            'max_hp' => 105,
             'mana' => 50,
             'max_mana' => 50,
-            'attack' => 10,
-            'defense' => 10,
+            'attack' => 20,   // strength(10)*2
+            'defense' => 5,    // floor(dexterity(10)/2)
             'speed' => 10,
             'luck' => 5,
+            // Primary RPG attributes
+            'strength' => 10,
+            'dexterity' => 10,
+            'intelligence' => 10,
+            'vitality' => 10,
             'last_activity_at' => now(),
         ];
     }

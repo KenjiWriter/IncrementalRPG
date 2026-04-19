@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Events\CombatTickEvent;
 use App\Events\GlobalLootEvent;
 use App\Http\Controllers\Controller;
+use App\Models\Item;
 use App\Models\Location;
 use App\Models\Monster;
 use App\Models\User;
@@ -88,7 +89,7 @@ class CharacterController extends Controller
             if (! $monster) {
                 // Generate new monster based on character location
                 $availableMonsters = Monster::where('location_id', $character->current_location_id)->get();
-                
+
                 if ($availableMonsters->isEmpty()) {
                     // Fallback to random if no monsters found for location (should not happen with seeders)
                     $monsterType = ['Slime', 'Goblin', 'Wolf'];
@@ -135,17 +136,21 @@ class CharacterController extends Controller
 
                     // Significant item drop — broadcast to the global public channel
                     if (rand(1, 100) <= 15) {
-                        $item = 'Rusty Sword';
-                        $logs[] = "You looted a {$item}!";
+                        $item = Item::inRandomOrder()->first();
 
-                        GlobalLootEvent::dispatch($character->name, $item);
+                        if ($item) {
+                            $character->items()->attach($item->id);
+                            $logs[] = "You looted a {$item->name}!";
+                            GlobalLootEvent::dispatch($character->name, $item->name);
+                        }
                     }
 
                     $monster = null;
                     Cache::forget("character_{$character->id}_monster");
                 } else {
                     // Monster fights back
-                    $monsterDamage = max(1, $monster['attack'] + rand(-1, 2) - (int) floor($character->defense / 2));
+                    // Monster damage formula updated to use the full character defense (derived from DEX + Armor)
+                    $monsterDamage = max(1, $monster['attack'] - $character->defense + rand(-1, 2));
                     $character->hp -= $monsterDamage;
                     $logs[] = "{$monster['name']} attacked you for {$monsterDamage} damage.";
 
@@ -162,10 +167,19 @@ class CharacterController extends Controller
             if ($character->experience >= $expNeededForNextLevel) {
                 $character->level += 1;
                 $character->experience -= $expNeededForNextLevel;
-                $character->max_hp += 20;
+
+                // Grant attributes instead of raw stats
+                $character->strength += 2;
+                $character->dexterity += 2;
+                $character->intelligence += 1;
+                $character->vitality += 2;
+
+                // Recompute and persist derived stats (HP, Attack, Defense)
+                $character->applyStats();
+
+                // Restore HP to full after leveling
                 $character->hp = $character->max_hp;
-                $character->attack += 2;
-                $character->defense += 2;
+
                 $logs[] = "Level up! You are now level {$character->level}!";
             }
 
@@ -207,11 +221,11 @@ class CharacterController extends Controller
     {
         $user = $request->user();
         $character = $user->activeCharacter;
-        
+
         $locationId = $request->input('location_id');
         $location = Location::find($locationId);
 
-        if (!$location) {
+        if (! $location) {
             return response()->json(['status' => 'error', 'message' => 'Location not found'], 404);
         }
 
@@ -229,7 +243,7 @@ class CharacterController extends Controller
             'status' => 'success',
             'data' => [
                 'character' => $character->load('currentLocation'),
-            ]
+            ],
         ]);
     }
 }

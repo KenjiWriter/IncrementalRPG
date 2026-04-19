@@ -16,6 +16,11 @@ export const useCharacterStore = defineStore('character', {
         defense: 10,
         speed: 10,
         luck: 5,
+        strength: 10,
+        dexterity: 10,
+        intelligence: 10,
+        vitality: 10,
+        inventory: [],
         current_location_id: 1,
         currentLocation: null,
         isDead: false,
@@ -168,10 +173,45 @@ export const useCharacterStore = defineStore('character', {
             this.presentPlayers = [];
             console.info(`[Echo] Left presence channel: ${channelName}`);
         },
+
+        async fetchInventory() {
+            try {
+                const response = await axios.get('/api/inventory');
+                if (response.data.status === 'success') {
+                    this.inventory = response.data.data;
+                }
+            } catch (error) {
+                console.error('Error fetching inventory:', error);
+            }
+        },
+
+        async equipItem(characterItemId) {
+            try {
+                const response = await axios.post('/api/inventory/equip', { character_item_id: characterItemId });
+                if (response.data.status === 'success') {
+                    this.$patch(response.data.data.character);
+                    await this.fetchInventory();
+                }
+            } catch (error) {
+                console.error('Error equipping item:', error);
+            }
+        },
+
+        async unequipItem(characterItemId) {
+            try {
+                const response = await axios.post('/api/inventory/unequip', { character_item_id: characterItemId });
+                if (response.data.status === 'success') {
+                    this.$patch(response.data.data.character);
+                    await this.fetchInventory();
+                }
+            } catch (error) {
+                console.error('Error unequipping item:', error);
+            }
+        },
     },
 
     persist: {
-        // Exclude internal runtime fields from localStorage
-        omit: ['_echoChannel', '_locationChannel', '_userId', 'logs', 'presentPlayers'],
+        // Exclude internal runtime and large data fields from localStorage
+        omit: ['_echoChannel', '_locationChannel', '_userId', 'logs', 'presentPlayers', 'inventory'],
     },
 });
